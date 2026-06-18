@@ -197,7 +197,7 @@
         </div>
 
         <!-- Botões Footer -->
-        <div
+        <div id="footer-buttons"
             class="fixed bottom-0 w-full max-w-md bg-white dark:bg-darkcard p-4 border-t dark:border-gray-800 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-40 flex space-x-3 transition-colors duration-300">
             <button onclick="startTimer(60)"
                 class="w-1/3 bg-pink-100 dark:bg-pink-900/50 hover:bg-pink-200 dark:hover:bg-pink-800 text-pink-700 dark:text-pink-300 font-bold py-3 rounded-xl shadow-sm transition active:scale-[0.98] flex flex-col justify-center items-center text-sm">
@@ -386,6 +386,9 @@
                     }
 
                     if (d.workoutData) { 
+                        if (!d.workoutData['Pilates']) {
+                            d.workoutData['Pilates'] = [];
+                        }
                         const sorted = sortTabs(d.workoutData);
                         workoutData = (Object.keys(sorted).length > 0) ? sorted : defaultWorkoutData;
                         _origSetItem('appWorkoutData', JSON.stringify(workoutData)); 
@@ -400,11 +403,11 @@
                     tabs = Object.keys(workoutData);
                     
                     let dbNext = d.nextTab;
-                    if (dbNext && tabs.includes(dbNext)) {
+                    if (dbNext && tabs.includes(dbNext) && dbNext !== 'Pilates') {
                         nextTab = dbNext;
                         _origSetItem('nextTab', nextTab);
                     } else {
-                        nextTab = tabs[0];
+                        nextTab = tabs.find(t => t !== 'Pilates') || tabs[0];
                     }
                     
                     currentTab = nextTab;
@@ -474,11 +477,35 @@
                 { id: 'c5', name: 'BICICLETA VERTICAL', sets: '-', reps: '30min' },
                 { id: 'c6', name: 'ABD INFRA', sets: '-', reps: '-' },
                 { id: 'c7', name: 'ESTEIRA', sets: '-', reps: '30min' }
+            ],
+            'Pilates': []
+        };
+
+        const pilatesSchedule = {
+            'Segunda-feira': [
+                { time: '08:45 - 09:30', period: 'Manhã' },
+                { time: '16:45 - 17:15', period: 'Noite' }
+            ],
+            'Terça-feira': [
+                { time: '07:45 - 08:30', period: 'Manhã' },
+                { time: '16:15 - 17:00', period: 'Noite' }
+            ],
+            'Quarta-feira': [
+                { time: '08:45 - 09:30', period: 'Manhã' },
+                { time: '16:45 - 17:15', period: 'Noite' },
+                { time: '19:00 - 19:45', period: 'Noite' }
+            ],
+            'Quinta-feira': [
+                { time: '07:45 - 08:30', period: 'Manhã' }
+            ],
+            'Sexta-feira': [
+                { time: '08:45 - 09:30', period: 'Manhã' },
+                { time: '16:15 - 17:15', period: 'Noite' }
             ]
         };
 
         // --- 2. STATE MANAGEMENT ---
-        const TAB_ORDER = ['Série A', 'Série B', 'Série C'];
+        const TAB_ORDER = ['Série A', 'Série B', 'Série C', 'Pilates'];
 
         function sortTabs(data) {
             // Migra chaves antigas (ficha velha -> nova A/B/C/D)
@@ -498,6 +525,13 @@
         let _rawWorkoutData = sortTabs(JSON.parse(localStorage.getItem('appWorkoutData')) || defaultWorkoutData);
         let workoutData = (Object.keys(_rawWorkoutData).length > 0) ? _rawWorkoutData : defaultWorkoutData;
 
+        // Garante que a aba Pilates exista nos dados locais
+        if (!workoutData['Pilates']) {
+            workoutData['Pilates'] = [];
+        }
+        // Força ordenação incluindo a nova aba Pilates
+        workoutData = sortTabs(workoutData);
+
         Object.keys(workoutData).forEach(tab => {
             workoutData[tab].forEach(ex => { if (!ex.id) ex.id = Math.random().toString(36).substr(2, 9); });
         });
@@ -507,7 +541,9 @@
         
         // currentTab e nextTab inicializados do localstorage
         let nextTab = localStorage.getItem('nextTab');
-        if (!nextTab || !tabs.includes(nextTab)) nextTab = tabs[0];
+        if (!nextTab || !tabs.includes(nextTab) || nextTab === 'Pilates') {
+            nextTab = tabs.find(t => t !== 'Pilates') || tabs[0];
+        }
         
         // User explicitly requested to ALWAYS open at the current progression step (nextTab)
         let currentTab = nextTab;
@@ -641,6 +677,7 @@
         function renderTabs() {
             const container = document.getElementById('tabs-container');
             container.innerHTML = '';
+            container.className = `grid grid-cols-${tabs.length} gap-1`;
             tabs.forEach(tab => {
                 const isNext = tab === nextTab;
                 const isSelected = tab === currentTab;
@@ -648,18 +685,26 @@
 
                 let cls = 'px-1 py-2 rounded-xl text-[11px] font-semibold transition-colors duration-200 ease-in-out text-center leading-tight ';
 
-                if (isSelected && isNext) {
-                    // Selecionado E é o próximo: verde vibrante
-                    cls += 'bg-green-500 text-white shadow-md ring-2 ring-green-300 w-full';
-                } else if (isSelected && !isNext) {
-                    // Selecionado mas não é o próximo: azul (visualizando outro treino)
-                    cls += 'bg-blue-600 text-white shadow-md w-full';
-                } else if (isNext) {
-                    // Próximo mas não selecionado: verde mais suave
-                    cls += 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 ring-2 ring-green-400 hover:bg-green-200 dark:hover:bg-green-800/50 w-full';
+                if (tab === 'Pilates') {
+                    if (isSelected) {
+                        cls += 'bg-pink-600 text-white shadow-md w-full';
+                    } else {
+                        cls += 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 hover:bg-pink-200 dark:hover:bg-pink-800/40 w-full';
+                    }
                 } else {
-                    // Outros treinos: laranja
-                    cls += 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-800/40 w-full';
+                    if (isSelected && isNext) {
+                        // Selecionado E é o próximo: verde vibrante
+                        cls += 'bg-green-500 text-white shadow-md ring-2 ring-green-300 w-full';
+                    } else if (isSelected && !isNext) {
+                        // Selecionado mas não é o próximo: azul (visualizando outro treino)
+                        cls += 'bg-blue-600 text-white shadow-md w-full';
+                    } else if (isNext) {
+                        // Próximo mas não selecionado: verde mais suave
+                        cls += 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 ring-2 ring-green-400 hover:bg-green-200 dark:hover:bg-green-800/50 w-full';
+                    } else {
+                        // Outros treinos: laranja
+                        cls += 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-800/40 w-full';
+                    }
                 }
 
                 btn.className = cls;
@@ -667,6 +712,8 @@
                 // Ícone de "próximo" para o tab que vem a seguir
                 if (isNext) {
                     btn.innerHTML = `<i class="fa-solid fa-play text-[10px] block mb-0.5 opacity-80"></i>${tab}`;
+                } else if (tab === 'Pilates') {
+                    btn.innerHTML = `<i class="fa-solid fa-spa text-[10px] block mb-0.5 opacity-80"></i>${tab}`;
                 } else {
                     btn.innerText = tab;
                 }
@@ -681,6 +728,12 @@
         }
 
         function renderExercises() {
+            if (currentTab === 'Pilates') {
+                renderPilatesTab();
+                updateFooter();
+                return;
+            }
+
             const container = document.getElementById('exercises-container');
             container.innerHTML = '';
 
@@ -729,6 +782,150 @@
                 container.style.transition = 'opacity 0.3s';
                 container.style.opacity = 1;
             }, 50);
+
+            updateFooter();
+        }
+
+        function renderPilatesTab() {
+            const container = document.getElementById('exercises-container');
+            container.innerHTML = '';
+            container.style.opacity = 0;
+
+            const daysOfWeekPt = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+            const todayPt = daysOfWeekPt[new Date().getDay()];
+
+            // Header info card
+            const infoCard = document.createElement('div');
+            infoCard.className = 'bg-gradient-to-r from-pink-500 to-pink-600 dark:from-pink-850 dark:to-pink-950 text-white p-5 rounded-2xl shadow-md mb-6 relative overflow-hidden border border-pink-400/20';
+            infoCard.innerHTML = `
+                <div class="flex items-center space-x-3 mb-2 z-10 relative">
+                    <div class="bg-white/20 p-2.5 rounded-xl">
+                        <i class="fa-solid fa-spa text-2xl"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold">Pilates Solo 🌸</h2>
+                        <p class="text-xs text-pink-100">Academia Cristal • Unidade Guarapiranga</p>
+                    </div>
+                </div>
+                <p class="text-xs leading-relaxed opacity-90 z-10 relative">Aulas de Pilates Solo inclusas no seu plano. Use esta aba para consultar os horários das turmas e registrar sua presença.</p>
+                <div class="absolute -right-6 -bottom-6 text-pink-300/10 text-8xl z-0"><i class="fa-solid fa-spa"></i></div>
+            `;
+            container.appendChild(infoCard);
+
+            // Days of the week list
+            const scheduleDays = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
+            
+            scheduleDays.forEach(day => {
+                const isToday = day === todayPt;
+                const classes = pilatesSchedule[day] || [];
+
+                const card = document.createElement('div');
+                card.className = `p-4 rounded-xl shadow-sm border mb-4 transition-all duration-200 ${
+                    isToday 
+                        ? 'bg-pink-50/70 dark:bg-pink-900/20 border-pink-400 dark:border-pink-800 ring-1 ring-pink-400 dark:ring-pink-800 shadow-md transform scale-[1.01]' 
+                        : 'bg-white dark:bg-darkcard border-gray-100 dark:border-gray-800'
+                }`;
+
+                let headerHtml = `
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="font-bold text-base ${isToday ? 'text-pink-600 dark:text-pink-400' : 'text-gray-800 dark:text-gray-200'}">${day}</span>
+                        ${isToday ? '<span class="bg-pink-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse shadow-sm">Hoje</span>' : ''}
+                    </div>
+                `;
+
+                let classesHtml = '';
+                classes.forEach(c => {
+                    const isMorning = c.period === 'Manhã';
+                    classesHtml += `
+                        <div class="flex items-center justify-between py-2 border-b last:border-b-0 border-gray-100/70 dark:border-gray-800/70">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-xs font-semibold px-2 py-0.5 rounded ${
+                                    isMorning 
+                                        ? 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300' 
+                                        : 'bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300'
+                                }">
+                                    ${isMorning ? '☀️ Manhã' : '🌙 Noite'}
+                                </span>
+                            </div>
+                            <span class="font-mono text-sm font-bold text-gray-700 dark:text-gray-300">${c.time}</span>
+                        </div>
+                    `;
+                });
+
+                card.innerHTML = headerHtml + `<div class="space-y-1">${classesHtml}</div>`;
+                container.appendChild(card);
+            });
+
+            setTimeout(() => {
+                container.style.transition = 'opacity 0.3s';
+                container.style.opacity = 1;
+            }, 50);
+        }
+
+        function logPilatesWorkout() {
+            const daysOfWeekPt = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+            const todayPt = daysOfWeekPt[new Date().getDay()];
+            const classesToday = pilatesSchedule[todayPt];
+            
+            if (!classesToday || classesToday.length === 0) {
+                if (!confirm("Hoje não há aulas de Pilates programadas no cronograma padrão. Deseja registrar a presença mesmo assim?")) {
+                    return;
+                }
+            } else {
+                if (!confirm(`Deseja registrar que você realizou a aula de Pilates hoje (${todayPt})?`)) {
+                    return;
+                }
+            }
+
+            let notes = prompt("Aula de Pilates Realizada! 🌸 Quer adicionar alguma nota opcional? (Ex: foco em postura, muito alongamento) ou clique OK para pular:");
+            const noteText = notes && notes.trim() !== "" ? notes.trim() : "Aula de Pilates Solo realizada";
+
+            const now = new Date();
+            workoutHistory.unshift({
+                id: Date.now(),
+                type: 'workout',
+                tabName: 'Pilates 🌸',
+                date: now.toLocaleDateString('pt-BR'),
+                time: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+                exercisesDone: 1,
+                totalExercises: 1,
+                duration: '-',
+                notes: noteText
+            });
+
+            if (workoutHistory.length > 50) workoutHistory.pop();
+            localStorage.setItem('workoutHistory', JSON.stringify(workoutHistory));
+            
+            renderHistory();
+            showToast("Presença no Pilates registrada! 🌸");
+            
+            // Sync to firestore
+            saveToFirestore();
+        }
+
+        function updateFooter() {
+            const footerContainer = document.getElementById('footer-buttons');
+            if (!footerContainer) return;
+            
+            if (currentTab === 'Pilates') {
+                footerContainer.innerHTML = `
+                    <button onclick="logPilatesWorkout()"
+                        class="w-full bg-pink-600 hover:bg-pink-700 text-white font-bold py-4 rounded-xl shadow-lg transition active:scale-[0.98] flex justify-center items-center text-lg">
+                        <span class="flex items-center"><i class="fa-solid fa-spa mr-2"></i> Registrar Presença no Pilates</span>
+                    </button>
+                `;
+            } else {
+                footerContainer.innerHTML = `
+                    <button onclick="startTimer(60)"
+                        class="w-1/3 bg-pink-100 dark:bg-pink-900/50 hover:bg-pink-200 dark:hover:bg-pink-800 text-pink-700 dark:text-pink-300 font-bold py-3 rounded-xl shadow-sm transition active:scale-[0.98] flex flex-col justify-center items-center text-sm">
+                        <i class="fa-solid fa-stopwatch text-lg mb-1"></i> Timer 60s
+                    </button>
+                    <button onclick="finishWorkout()"
+                        class="w-2/3 bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl shadow-lg transition active:scale-[0.98] flex flex-col justify-center items-center text-lg">
+                        <span class="flex items-center"><i class="fa-solid fa-check-circle mr-2"></i> Finalizar</span>
+                    </button>
+                `;
+            }
         }
 
         // --- LÓGICA DE TEMPO E HISTÓRICO DE EXERCÍCIOS ---
@@ -863,11 +1060,12 @@
 
         // --- 6. LÓGICA DE FINALIZAR E DESCANSO ---
         function advanceTab() {
-            // Avança o PRÓXIMO TREINO com base no nextTab atual (não no que está sendo visualizado)
-            const currentIndex = tabs.indexOf(nextTab);
+            // Avança o PRÓXIMO TREINO com base no nextTab atual, ignorando a aba Pilates na rotação
+            const rotationTabs = tabs.filter(t => t !== 'Pilates');
+            const currentIndex = rotationTabs.indexOf(nextTab);
             let nextIndex = currentIndex + 1;
-            if (nextIndex >= tabs.length) nextIndex = 0;
-            nextTab = tabs[nextIndex];
+            if (nextIndex >= rotationTabs.length) nextIndex = 0;
+            nextTab = rotationTabs[nextIndex];
             currentTab = nextTab; // após finalizar, mostra o próximo
             localStorage.setItem('nextTab', nextTab);
             localStorage.setItem('currentTab', currentTab);
@@ -1031,7 +1229,21 @@
             document.getElementById('edit-tab-name').innerText = currentTab;
             const list = document.getElementById('edit-exercises-list');
             list.innerHTML = '';
-            const exercises = workoutData[currentTab];
+            
+            const renameBtn = document.querySelector('button[onclick="renameCurrentTab()"]');
+            const addBtn = document.querySelector('button[onclick="openAddExercise()"]');
+            
+            if (currentTab === 'Pilates') {
+                if (renameBtn) renameBtn.style.display = 'none';
+                if (addBtn) addBtn.style.display = 'none';
+                list.innerHTML = `<p class="text-center text-gray-500 dark:text-gray-400 py-4 text-xs font-semibold">O cronograma de Pilates é fixo e não pode ser editado.</p>`;
+                return;
+            }
+            
+            if (renameBtn) renameBtn.style.display = '';
+            if (addBtn) addBtn.style.display = '';
+
+            const exercises = workoutData[currentTab] || [];
 
             exercises.forEach((ex, index) => {
                 const item = document.createElement('div');
@@ -1070,6 +1282,7 @@
         }
 
         function openAddExercise() {
+            if (currentTab === 'Pilates') return;
             const name = prompt("Nome do exercício:");
             if (!name) return;
             const sets = prompt("Séries (ex: 3):", "3") || "3";
@@ -1089,6 +1302,7 @@
         }
 
         function renameCurrentTab() {
+            if (currentTab === 'Pilates') return;
             const newName = prompt("Digite o novo nome para este treino:", currentTab);
 
             if (!newName || newName.trim() === "" || newName === currentTab) return;
